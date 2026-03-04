@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>崩塌地現勘系統 (GAS 版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .loading-mask { display: none; }
+        .loading-mask.active { display: flex; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen flex flex-col items-center p-4">
+
+    <div class="w-full max-w-md bg-green-700 text-white p-6 rounded-t-2xl shadow-lg">
+        <h1 class="text-xl font-bold flex items-center gap-2">
+            🌿 高精度現勘上傳
+        </h1>
+        <p class="text-xs opacity-80 mt-1">GitHub 前端 + Google Apps Script 後端</p>
+    </div>
+
+    <form id="surveyForm" class="w-full max-w-md bg-white p-6 rounded-b-2xl shadow-md space-y-6">
+        
+        <div id="gpsBox" class="bg-slate-100 p-4 rounded-xl border-2 border-dashed border-slate-300 transition-all">
+            <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">當前衛星定位 (WGS84)</label>
+            <div id="gpsStatus" class="text-blue-600 font-mono text-sm leading-relaxed">正在獲取定位中...</div>
+            <input type="hidden" id="lat" name="latitude">
+            <input type="hidden" id="lon" name="longitude">
+        </div>
+
+        <div>
+            <label class="block text-sm font-bold text-slate-700 mb-2">現場照片</label>
+            <input type="file" id="photoInput" accept="image/*" capture="camera" required 
+                   class="block w-full text-sm text-slate-500 file:mr-4 file:py-3 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 cursor-pointer">
+        </div>
+
+        <div>
+            <label class="block text-sm font-bold text-slate-700 mb-2">現場備註</label>
+            <textarea id="note" rows="2" class="w-full border-slate-300 rounded-xl p-3 text-sm focus:ring-green-500 focus:border-green-500 border shadow-sm" placeholder="描述崩塌特徵、規模或災情..."></textarea>
+        </div>
+
+        <button type="submit" id="submitBtn" disabled 
+                class="w-full bg-slate-400 text-white font-bold py-4 rounded-xl shadow-lg transition-all active:scale-95 disabled:opacity-50">
+            等待定位中...
+        </button>
+    </form>
+
+    <div id="loader" class="loading-mask fixed inset-0 bg-slate-900/70 items-center justify-center text-white flex-col space-y-4 z-50 backdrop-blur-sm">
+        <div class="animate-spin rounded-full h-12 w-12 border-4 border-green-400 border-t-transparent"></div>
+        <p class="font-bold tracking-widest text-lg">正在處理並轉換座標...</p>
+    </div>
+
+    <script>
+        // ⚠️ 請在此處填入您部署 GAS 後獲得的 Web App URL
+        const GAS_URL = "您的_GOOGLE_APPS_SCRIPT_網頁應用程式網址";
+
+        const gpsStatus = document.getElementById('gpsStatus');
+        const submitBtn = document.getElementById('submitBtn');
+        const loader = document.getElementById('loader');
+        const gpsBox = document.getElementById('gpsBox');
+
+        // 1. 獲取高精度 GPS (大地工程現勘必備)
+        function startLocation() {
+            if (!navigator.geolocation) {
+                gpsStatus.innerHTML = "❌ 您的瀏覽器不支援定位";
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    const acc = position.coords.accuracy.toFixed(1);
+
+                    document.getElementById('lat').value = lat;
+                    document.getElementById('lon').value = lon;
+
+                    gpsStatus.innerHTML = `緯度: ${lat.toFixed(6)}<br>經度: ${lon.toFixed(6)}<br><span class="text-green-600 font-bold">● 定位精度: ±${acc}m</span>`;
+                    
+                    submitBtn.disabled = false;
+                    submitBtn.innerText = "確認並傳送至雲端";
+                    submitBtn.classList.remove('bg-slate-400');
+                    submitBtn.classList.add('bg-green-700', 'hover:bg-green-800');
+                    gpsBox.classList.replace('border-slate-300', 'border-green-400');
+                },
+                (error) => {
+                    gpsStatus.innerHTML = "❌ 定位失敗: " + error.message + "<br>請確認開啟手機 GPS 與瀏覽器權限";
+                    gpsStatus.classList.replace('text-blue-600', 'text-red-500');
+                },
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+            );
+        }
+
+        // 初始化定位
+        startLocation();
+
+        // 2. 表單提交處理 (Base64 轉換)
+        document.getElementById('surveyForm').onsubmit = async (e) => {
+            e.preventDefault();
+            
+            if (!GAS_URL.startsWith("https")) {
+                alert("請先在 script 標籤內填寫正確的 GAS 網址");
+                return;
+            }
+
+            loader.classList.add('active');
+            submitBtn.disabled = true;
+
+            const photoFile = document.getElementById('photoInput').files[0];
+            const reader = new FileReader();
+
+            // 將照片讀取為 Base64 字串
+            reader.onload = async function() {
+                const base64String = reader.result.split(',')[1];
+                
+                const payload = {
+                    latitude: document.getElementById('lat').value,
+                    longitude: document.getElementById('lon').value,
+                    note: document.getElementById('note').value,
+                    photo_base64: base64String
+                };
+
+                try {
+                    // 發送到 GAS 後端 (注意：GAS POST 請求僅支援 JSON)
+                    const response = await fetch(GAS_URL, {
+                        method: 'POST',
+                        body: JSON.stringify(payload)
+                    });
+
+                    const result = await response.json();
+
+                    if (result.status === "success") {
+                        alert('✅ 現勘數據與照片已成功存入 Google 試算表及雲端硬碟！');
+                        window.location.reload();
+                    } else {
+                        alert('❌ 系統錯誤: ' + (result.message || "未知原因"));
+                    }
+                } catch (err) {
+                    alert('❌ 連線錯誤，請確認 GAS 是否正確部署並允許所有人存取。');
+                    console.error(err);
+                } finally {
+                    loader.classList.remove('active');
+                    submitBtn.disabled = false;
+                }
+            };
+
+            if (photoFile) {
+                reader.readAsDataURL(photoFile);
+            } else {
+                alert("請拍攝或選取一張照片");
+                loader.classList.remove('active');
+                submitBtn.disabled = false;
+            }
+        };
+    </script>
+</body>
+</html>
