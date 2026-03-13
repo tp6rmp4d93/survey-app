@@ -10,7 +10,7 @@
         .form-group { margin-bottom: 15px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         label { display: block; margin-bottom: 8px; font-weight: bold; color: #333; }
         input[type="text"], select, input[type="file"] { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
-        button { background-color: #0056b3; color: white; border: none; border-radius: 5px; padding: 12px; cursor: pointer; font-size: 16px; font-weight: bold; width: 100%; margin-top: 5px; }
+        button { background-color: #27a129; color: white; border: none; border-radius: 5px; padding: 12px; cursor: pointer; font-size: 16px; font-weight: bold; width: 100%; margin-top: 5px; }
         button:hover { background-color: #004494; }
         .btn-small { width: auto; padding: 10px 15px; margin: 0; }
         #map { height: 300px; width: 100%; background-color: #eee; margin-top: 10px; border-radius: 5px; }
@@ -21,7 +21,7 @@
 </head>
 <body>
 
-    <h2 style="text-align: center; color: #0056b3;">土石流現勘回報系統</h2>
+    <h2 style="text-align: center; color: #27a129;">土石流現勘回報系統</h2>
 
     <div class="form-group">
         <label>目前定位 (WGS84)</label>
@@ -67,7 +67,7 @@
         </select>
     </div>
 
-    <div class="form-group" id="overflowDetails" style="display: none; background-color: #f1f8ff; border-left: 4px solid #0056b3;">
+    <div class="form-group" id="overflowDetails" style="display: none; background-color: #f1f8ff; border-left: 4px solid #27a129;">
         <label>請標明溢流點地形位置</label>
         <select id="overflowType">
             <option value="">(未指定地形特徵)</option>
@@ -301,7 +301,7 @@
             const btn = document.querySelector('button[onclick="submitForm()"]');
             const statusDiv = document.getElementById("status");
             btn.disabled = true;
-            statusDiv.style.color = "#0056b3";
+            statusDiv.style.color = "#27a129";
             statusDiv.innerText = "資料與影像上傳中，請稍候...";
             
             const fileInput = document.getElementById("photoUpload").files[0];
