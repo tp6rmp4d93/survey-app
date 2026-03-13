@@ -26,8 +26,8 @@
     <div class="form-group">
         <label>目前定位 (WGS84)</label>
         <div class="flex-row">
-            <input type="text" id="gpsData" readonly placeholder="尚未獲取座標" style="flex-grow: 1;">
-            <button type="button" class="btn-small" onclick="getGPS()">📍 重新定位</button>
+            <input type="text" id="gpsData" readonly placeholder="尚未獲取坐標" style="flex-grow: 1;">
+            <button type="button" class="btn-small" onclick="getGPS()">📍重新定位</button>
         </div>
         <div id="map"></div>
         <span class="help-text" id="locationText"></span>
@@ -143,7 +143,7 @@
             document.getElementById('photoUpload').addEventListener('change', handlePhotoUpload);
         }
 
-        // 2. 更新座標與地圖顯示
+        // 2. 更新坐標與地圖顯示
         function updateLocation(newLat, newLng) {
             lat = parseFloat(newLat);
             lng = parseFloat(newLng);
@@ -171,7 +171,7 @@
             }
         }
 
-        // 4. 解析照片 EXIF 座標
+        // 4. 解析照片 EXIF 坐標
         async function handlePhotoUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -179,7 +179,7 @@
             try {
                 const gps = await exifr.gps(file);
                 if (gps && gps.latitude && gps.longitude) {
-                    // 若照片有座標，優先使用照片座標
+                    // 若照片有坐標，優先使用照片坐標
                     updateLocation(gps.latitude, gps.longitude);
                     document.getElementById("locationText").innerText = "📸 已切換至照片拍攝位置，正在重新解析村里...";
                 }
