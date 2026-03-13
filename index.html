@@ -3,58 +3,100 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>土石流潛勢溪流現勘系統 (地圖整合版)</title>
+    <title>土石流潛勢溪流現勘系統 (完整行動版)</title>
     <script src="https://cdn.jsdelivr.net/npm/exifr/dist/lite.umd.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 15px; max-width: 600px; margin: auto; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input, select, button { width: 100%; padding: 10px; box-sizing: border-box; }
-        button { background-color: #0056b3; color: white; border: none; border-radius: 5px; margin-top: 5px; cursor: pointer; }
+        body { font-family: sans-serif; padding: 15px; max-width: 600px; margin: auto; background-color: #f9f9f9; }
+        .form-group { margin-bottom: 15px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        label { display: block; margin-bottom: 8px; font-weight: bold; color: #333; }
+        input[type="text"], select, input[type="file"] { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        button { background-color: #0056b3; color: white; border: none; border-radius: 5px; padding: 12px; cursor: pointer; font-size: 16px; font-weight: bold; width: 100%; margin-top: 5px; }
+        button:hover { background-color: #004494; }
+        .btn-small { width: auto; padding: 10px 15px; margin: 0; }
         #map { height: 300px; width: 100%; background-color: #eee; margin-top: 10px; border-radius: 5px; }
-        #status { margin-top: 15px; color: green; font-weight: bold; }
-        .flex-row { display: flex; gap: 10px; }
+        #status { margin-top: 15px; color: green; font-weight: bold; text-align: center; }
+        .flex-row { display: flex; gap: 10px; align-items: center; }
+        .help-text { font-size: 0.85em; color: #666; margin-top: 5px; display: block; }
     </style>
 </head>
 <body>
 
-    <h2>土石流現勘回報表</h2>
+    <h2 style="text-align: center; color: #0056b3;">土石流現勘回報系統</h2>
 
     <div class="form-group">
         <label>目前定位 (WGS84)</label>
         <div class="flex-row">
-            <input type="text" id="gpsData" readonly placeholder="尚未獲取座標">
-            <button type="button" onclick="getGPS()" style="width: 40%; margin: 0;">目前位置</button>
+            <input type="text" id="gpsData" readonly placeholder="尚未獲取座標" style="flex-grow: 1;">
+            <button type="button" class="btn-small" onclick="getGPS()">📍 重新定位</button>
         </div>
         <div id="map"></div>
-        <small id="locationText" style="color: #666;"></small>
+        <span class="help-text" id="locationText"></span>
     </div>
 
     <div class="form-group">
-        <label>溪流編號 (可選擇或手動輸入臨時編號)</label>
-        <input list="streamIdList" id="streamId" placeholder="請輸入或選擇編號 (如: 高市DF019)">
+        <label>溪流編號 (支援手填臨時編號)</label>
+        <input list="streamIdList" id="streamId" placeholder="請點擊選擇或手動輸入 (如: 高市DF019)">
         <datalist id="streamIdList">
             </datalist>
     </div>
 
     <div class="form-group">
-        <label>現場照片 (若含 GPS 將自動更新地圖)</label>
+        <label>調查人員</label>
+        <input type="text" id="investigator" placeholder="請輸入姓名">
+    </div>
+
+    <div class="form-group">
+        <label>發生潛勢初估</label>
+        <select id="riskLevel">
+            <option value="高">高 (High)</option>
+            <option value="中">中 (Medium)</option>
+            <option value="低" selected>低 (Low)</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label>調查區位 / 設施類型</label>
+        <select id="photoLocation" onchange="toggleOverflowDetails()">
+            <option value="發生區">1. 發生區</option>
+            <option value="流動區">2. 流動區</option>
+            <option value="堆積區">3. 堆積區</option>
+            <option value="保全對象">4. 保全對象</option>
+            <option value="工程設施">5. 工程設施</option>
+            <option value="溢流點">6. 溢流點</option>
+            <option value="其他">7. 其他</option>
+        </select>
+    </div>
+
+    <div class="form-group" id="overflowDetails" style="display: none; background-color: #f1f8ff; border-left: 4px solid #0056b3;">
+        <label>請標明溢流點地形位置</label>
+        <select id="overflowType">
+            <option value="">(未指定地形特徵)</option>
+            <option value="谷口">谷口</option>
+            <option value="坡度陡變處">坡度陡變處</option>
+            <option value="地形開闊處起點">地形開闊處起點</option>
+            <option value="河道轉彎處">河道轉彎處</option>
+            <option value="障礙物處">障礙物處</option>
+            <option value="其他位置">其他位置</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label>現場影像紀錄 (若含 GPS 將自動更新地圖)</label>
         <input type="file" id="photoUpload" accept="image/*" capture="environment">
     </div>
 
-    <button type="button" onclick="submitForm()">送出調查資料</button>
+    <button type="button" onclick="submitForm()">🚀 送出調查資料</button>
     <div id="status"></div>
 
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB_m91mDE1HSFIj-s-iiCsS9RvmVWgSl3E&loading=async&libraries=marker&callback=initSystem" async defer></script>
 
     <script>
         let map, marker, geocoder;
-        let lat = 23.5, lng = 121.0; 
+        let lat = 23.5, lng = 121.0; // 預設台灣中心點
         let allDebrisData = []; 
 
-        // 1. 系統初始化 (已升級為 AdvancedMarkerElement)
+        // 1. 系統初始化 (採用 AdvancedMarkerElement)
         async function initSystem() {
-            // 使用最新的 importLibrary 語法
             const { Map } = await google.maps.importLibrary("maps");
             const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
             const { Geocoder } = await google.maps.importLibrary("geocoding");
@@ -63,48 +105,51 @@
                 center: { lat: lat, lng: lng },
                 zoom: 7,
                 mapTypeId: 'hybrid',
-                mapId: 'DEMO_MAP_ID', // 進階標記要求必須綁定 mapId
-                streetViewControl: false
+                mapId: 'DEMO_MAP_ID', // 進階標記必須參數
+                streetViewControl: false,
+                mapTypeControl: false // 手機版版面優化
             });
 
-            // 建立新版進階圖釘
             marker = new AdvancedMarkerElement({
                 map: map,
                 position: { lat: lat, lng: lng },
-                gmpDraggable: true // 允許拖曳
+                gmpDraggable: true // 允許拖曳微調
             });
 
             geocoder = new Geocoder();
 
+            // 載入 JSON 資料 (與 index.html 放同目錄)
             try {
                 const response = await fetch('GetDebrisVillInfo.json');
                 allDebrisData = await response.json();
                 populateDropdown(allDebrisData); 
             } catch (error) {
                 console.error("載入 JSON 失敗", error);
+                document.getElementById("locationText").innerText = "⚠️ 無法載入溪流資料庫，請檢查 JSON 路徑。";
             }
 
-            // 綁定地圖點擊事件
+            // 綁定地圖點擊
             map.addListener('click', (e) => {
                 updateLocation(e.latLng.lat(), e.latLng.lng());
             });
 
-            // 綁定圖釘拖曳完成事件 (新版事件寫法略有不同)
-            marker.addListener('dragend', (event) => {
+            // 綁定圖釘拖曳完成
+            marker.addListener('dragend', () => {
                 const position = marker.position;
                 updateLocation(position.lat, position.lng);
             });
             
+            // 綁定照片上傳 EXIF 解析
             document.getElementById('photoUpload').addEventListener('change', handlePhotoUpload);
         }
 
-        // 2. 更新座標與地圖
+        // 2. 更新座標與地圖顯示
         function updateLocation(newLat, newLng) {
             lat = parseFloat(newLat);
             lng = parseFloat(newLng);
             const pos = { lat: lat, lng: lng };
             
-            marker.position = pos; // 新版圖釘更新位置的語法
+            marker.position = pos;
             map.panTo(pos);
             map.setZoom(16);
             document.getElementById("gpsData").value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
@@ -112,19 +157,48 @@
             reverseGeocode(pos);
         }
 
-        // 5. 逆向地理編碼 (使用正則表達式，徹底解決山區漏抓問題)
+        // 3. 獲取手機 GPS
+        function getGPS() {
+            if (navigator.geolocation) {
+                document.getElementById("locationText").innerText = "GPS 定位中...";
+                navigator.geolocation.getCurrentPosition(position => {
+                    updateLocation(position.coords.latitude, position.coords.longitude);
+                }, () => {
+                    alert("無法獲取定位，請確認手機已開啟位置資訊權限。");
+                }, { enableHighAccuracy: true }); // 請求高精度定位
+            } else {
+                alert("此瀏覽器不支援定位功能。");
+            }
+        }
+
+        // 4. 解析照片 EXIF 座標
+        async function handlePhotoUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            try {
+                const gps = await exifr.gps(file);
+                if (gps && gps.latitude && gps.longitude) {
+                    // 若照片有座標，優先使用照片座標
+                    updateLocation(gps.latitude, gps.longitude);
+                    document.getElementById("locationText").innerText = "📸 已切換至照片拍攝位置，正在重新解析村里...";
+                }
+            } catch (err) {
+                console.log("此照片無 GPS 資訊或解析失敗");
+            }
+        }
+
+        // 5. 逆向地理編碼與選單連動 (正則表達式防呆版)
         function reverseGeocode(pos) {
             geocoder.geocode({ location: pos }, (results, status) => {
                 if (status === "OK" && results[0]) {
-                    // 直接取得完整地址，例如："848台灣高雄市桃源區勤和里南橫公路"
                     const address = results[0].formatted_address;
-                    
-                    // 清除郵遞區號與台灣字眼，剩下 "高雄市桃源區勤和里..."
+                    // 清除郵遞區號與台灣字眼
                     const cleanStr = address.replace(/^[\d\s]+/, '').replace(/^台[灣湾]|臺[灣湾]/, '');
 
                     let currentCounty = "", currentTown = "", currentVill = "";
                     
-                    // 正則萃取神技：精準切割出「縣市」、「鄉鎮市區」、「村里」
+                    // 正則萃取行政區
                     const match = cleanStr.match(/([^縣市]+[縣市])([^鄉鎮市區]+[鄉鎮市區])?([^村里]+[村里])?/);
 
                     if (match) {
@@ -133,19 +207,17 @@
                         currentVill = match[3] || "";
                     }
 
-                    // 統一臺台字元 (將 JSON 與 Google 統一為「台」以利比對)
+                    // 統一臺台字元
                     const normalizeStr = (str) => str ? str.replace(/臺/g, "台") : "";
                     const nCounty = normalizeStr(currentCounty);
                     const nTown = normalizeStr(currentTown);
                     const nVill = normalizeStr(currentVill);
 
-                    const locationString = `解析位置：${nCounty} ${nTown} ${nVill}`;
-                    document.getElementById("locationText").innerText = locationString;
+                    document.getElementById("locationText").innerText = `地圖位置：${nCounty} ${nTown} ${nVill}`;
 
                     // 【第一層篩選】精準比對：縣市 + 鄉鎮 + 村里
                     let filteredData = allDebrisData.filter(item => {
                         if (!item.County || !item.Town) return false;
-                        
                         let iCounty = normalizeStr(item.County);
                         let iTown = normalizeStr(item.Town);
                         let iVill = normalizeStr(item.Vill);
@@ -157,7 +229,7 @@
                         return matchCounty && matchTown && matchVill;
                     });
 
-                    // 【容錯機制】若村里查無資料，退回使用「鄉鎮」篩選
+                    // 【容錯機制】若村里查無資料，退回「鄉鎮」篩選
                     if (filteredData.length === 0) {
                         filteredData = allDebrisData.filter(item => {
                             if (!item.County || !item.Town) return false;
@@ -168,18 +240,17 @@
                             let matchTown = nTown.includes(iTown) || iTown.includes(nTown);
                             return matchCounty && matchTown;
                         });
-                        document.getElementById("locationText").innerText += " (退回鄉鎮篩選)";
+                        document.getElementById("locationText").innerText += " (擴大至鄉鎮範圍)";
                     }
 
                     const streamInput = document.getElementById("streamId");
 
-                    // 【選單自動帶入邏輯】
+                    // 【清單帶入邏輯】
                     if (filteredData.length > 0) {
                         populateDropdown(filteredData);
-                        
                         if (filteredData.length === 1) {
                             streamInput.value = filteredData[0].Debrisno;
-                            document.getElementById("locationText").innerText += ` ➔ 已自動填入: ${filteredData[0].Debrisno}`;
+                            document.getElementById("locationText").innerText += ` ➔ 自動帶入 ${filteredData[0].Debrisno}`;
                         } else {
                             streamInput.value = ""; 
                             streamInput.placeholder = `請點擊選單 (範圍內有 ${filteredData.length} 條)`;
@@ -187,35 +258,114 @@
                     } else {
                         populateDropdown(allDebrisData); 
                         streamInput.value = "";
-                        streamInput.placeholder = "此區域查無既有溪流，請手動輸入";
+                        streamInput.placeholder = "查無既有溪流，請手填臨時編號";
                     }
                 }
             });
         }
-        
-        // 6. 更新 Datalist 下拉選項
+
+        // 6. 渲染下拉選單
         function populateDropdown(dataArray) {
             const dataList = document.getElementById("streamIdList");
-            dataList.innerHTML = ""; // 清空舊選項
+            dataList.innerHTML = ""; 
             
             dataArray.forEach(item => {
-                // 假設您的 JSON 裡面有 Debrisno 欄位
                 if(item.Debrisno) {
                     const option = document.createElement("option");
                     option.value = item.Debrisno;
-                    // 可在選項後方加上村里名稱輔助辨識
                     option.text = `${item.County}${item.Town}${item.Vill || ''}`; 
                     dataList.appendChild(option);
                 }
             });
         }
 
-        // 7. 提交表單資料至後端 (與前次相同，此處簡略)
+        // 7. 控制溢流點次選單顯示
+        function toggleOverflowDetails() {
+            const locationSelect = document.getElementById("photoLocation").value;
+            const detailsDiv = document.getElementById("overflowDetails");
+            
+            if (locationSelect === "溢流點") {
+                detailsDiv.style.display = "block";
+            } else {
+                detailsDiv.style.display = "none"; 
+                document.getElementById("overflowType").value = ""; 
+            }
+        }
+
+        // 8. 封裝影像與資料並發送至後端
         async function submitForm() {
             const streamId = document.getElementById("streamId").value;
-            if(!streamId) { alert("請輸入或選擇溪流編號"); return; }
-            document.getElementById("status").innerText = "資料傳送中，請稍候...";
-            // ... (接續先前的 Base64 與 fetch API 傳送邏輯) ...
+            if(!streamId) { alert("請輸入或選擇溪流編號！"); return; }
+            if(lat === 23.5 && lng === 121.0) { alert("請先獲取地圖定位！"); return; }
+            
+            const btn = document.querySelector('button[onclick="submitForm()"]');
+            const statusDiv = document.getElementById("status");
+            btn.disabled = true;
+            statusDiv.style.color = "#0056b3";
+            statusDiv.innerText = "資料與影像上傳中，請稍候...";
+            
+            const fileInput = document.getElementById("photoUpload").files[0];
+            let photoBase64 = "";
+            let photoName = "";
+            
+            if (fileInput) {
+                try {
+                    photoBase64 = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.readAsDataURL(fileInput);
+                        reader.onload = () => resolve(reader.result.split(',')[1]);
+                        reader.onerror = error => reject(error);
+                    });
+                    photoName = fileInput.name;
+                } catch (e) {
+                    alert("照片處理失敗，請重新選擇");
+                    btn.disabled = false;
+                    return;
+                }
+            }
+
+            // 處理溢流點次選單字串合併
+            let finalLocation = document.getElementById("photoLocation").value;
+            if (finalLocation === "溢流點") {
+                const overflowType = document.getElementById("overflowType").value;
+                if (overflowType !== "") finalLocation = `${finalLocation} (${overflowType})`;
+            }
+
+            const payload = {
+                streamId: streamId,
+                investigator: document.getElementById("investigator").value || "未填寫",
+                lat: lat,
+                lng: lng,
+                riskLevel: document.getElementById("riskLevel").value,
+                photoLocation: finalLocation, 
+                photoBase64: photoBase64,
+                photoName: photoName
+            };
+
+            // ★ 請替換為您剛才部署的 Google Apps Script (Web App) 網址
+            const API_URL = "https://script.google.com/macros/s/YOUR_GAS_SCRIPT_ID/exec";
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: "POST",
+                    body: JSON.stringify(payload) 
+                });
+                const result = await response.json();
+                
+                if(result.status === "success") {
+                    statusDiv.style.color = "green";
+                    statusDiv.innerText = "✅ 回報成功！已寫入追蹤表並產生行事曆連結。";
+                    document.getElementById("photoUpload").value = ""; // 清空照片避免重複上傳
+                } else {
+                    statusDiv.style.color = "red";
+                    statusDiv.innerText = "❌ 寫入失敗: " + result.message;
+                }
+            } catch (error) {
+                statusDiv.style.color = "red";
+                statusDiv.innerText = "❌ 傳送失敗，請檢查網路連線或 API 網址是否正確。";
+            } finally {
+                btn.disabled = false;
+            }
         }
     </script>
 </body>
