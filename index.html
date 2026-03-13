@@ -45,37 +45,43 @@
     <button type="button" onclick="submitForm()">送出調查資料</button>
     <div id="status"></div>
 
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB_m91mDE1HSFIj-s-iiCsS9RvmVWgSl3E&callback=initSystem" async defer></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB_m91mDE1HSFIj-s-iiCsS9RvmVWgSl3E&loading=async&libraries=marker&callback=initSystem" async defer></script>
 
     <script>
         let map, marker, geocoder;
-        let lat = 23.5, lng = 121.0; // 預設台灣中心點
-        let allDebrisData = []; // 儲存從 JSON 抓取的所有溪流資料
+        let lat = 23.5, lng = 121.0; 
+        let allDebrisData = []; 
 
-        // 1. 系統初始化 (由 Google Maps 載入完成後觸發)
+        // 1. 系統初始化 (已升級為 AdvancedMarkerElement)
         async function initSystem() {
-            // 載入地圖
-            map = new google.maps.Map(document.getElementById("map"), {
+            // 使用最新的 importLibrary 語法
+            const { Map } = await google.maps.importLibrary("maps");
+            const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
+            const { Geocoder } = await google.maps.importLibrary("geocoding");
+
+            map = new Map(document.getElementById("map"), {
                 center: { lat: lat, lng: lng },
                 zoom: 7,
-                mapTypeId: 'hybrid', // 衛星混合底圖
-                streetViewControl: false // 隱藏街景按鈕節省空間
+                mapTypeId: 'hybrid',
+                mapId: 'DEMO_MAP_ID', // 進階標記要求必須綁定 mapId
+                streetViewControl: false
             });
 
-            marker = new google.maps.Marker({
-                position: { lat: lat, lng: lng },
+            // 建立新版進階圖釘
+            marker = new AdvancedMarkerElement({
                 map: map,
-                draggable: true
+                position: { lat: lat, lng: lng },
+                gmpDraggable: true // 允許拖曳
             });
-            geocoder = new google.maps.Geocoder();
 
-            // 載入 JSON 資料 (假設格式包含 Debrisno, County, Town, Vill)
+            geocoder = new Geocoder();
+
             try {
                 const response = await fetch('GetDebrisVillInfo.json');
                 allDebrisData = await response.json();
-                populateDropdown(allDebrisData); // 初始載入全台清單
+                populateDropdown(allDebrisData); 
             } catch (error) {
-                console.error("載入 JSON 失敗，請確認檔案路徑", error);
+                console.error("載入 JSON 失敗", error);
             }
 
             // 綁定地圖點擊事件
@@ -83,106 +89,67 @@
                 updateLocation(e.latLng.lat(), e.latLng.lng());
             });
 
-            // 綁定標記拖曳事件
-            marker.addListener('dragend', (e) => {
-                updateLocation(e.latLng.lat(), e.latLng.lng());
+            // 綁定圖釘拖曳完成事件 (新版事件寫法略有不同)
+            marker.addListener('dragend', (event) => {
+                const position = marker.position;
+                updateLocation(position.lat, position.lng);
             });
             
-            // 綁定照片上傳事件 (解析 EXIF)
             document.getElementById('photoUpload').addEventListener('change', handlePhotoUpload);
         }
 
-        // 2. 更新座標、移動地圖並觸發地址解析
+        // 2. 更新座標與地圖
         function updateLocation(newLat, newLng) {
-            lat = newLat;
-            lng = newLng;
+            lat = parseFloat(newLat);
+            lng = parseFloat(newLng);
             const pos = { lat: lat, lng: lng };
             
-            marker.setPosition(pos);
+            marker.position = pos; // 新版圖釘更新位置的語法
             map.panTo(pos);
             map.setZoom(16);
             document.getElementById("gpsData").value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 
-            // 進行逆向地理編碼，找出所屬村里
             reverseGeocode(pos);
         }
 
-        // 3. 獲取手機當前 GPS
-        function getGPS() {
-            if (navigator.geolocation) {
-                document.getElementById("gpsData").value = "定位中...";
-                navigator.geolocation.getCurrentPosition(position => {
-                    updateLocation(position.coords.latitude, position.coords.longitude);
-                }, () => {
-                    alert("無法獲取定位，請確認手機 GPS 權限。");
-                });
-            }
-        }
-
-        // 4. 照片上傳與 EXIF 解析
-        async function handlePhotoUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            try {
-                // 使用 exifr 讀取照片內的 GPS 資訊
-                const gps = await exifr.gps(file);
-                if (gps && gps.latitude && gps.longitude) {
-                    alert("已成功擷取照片 GPS 座標！地圖將自動移動。");
-                    updateLocation(gps.latitude, gps.longitude);
-                }
-            } catch (err) {
-                console.log("此照片無 GPS 資訊或解析失敗");
-            }
-        }
-
-        // 5. 逆向地理編碼與選單智慧帶入
-        // 5. 強化容錯版的逆向地理編碼與選單智慧帶入
+        // 5. 逆向地理編碼 (使用正則表達式，徹底解決山區漏抓問題)
         function reverseGeocode(pos) {
             geocoder.geocode({ location: pos }, (results, status) => {
                 if (status === "OK" && results[0]) {
-                    const addressComponents = results[0].address_components;
+                    // 直接取得完整地址，例如："848台灣高雄市桃源區勤和里南橫公路"
+                    const address = results[0].formatted_address;
+                    
+                    // 清除郵遞區號與台灣字眼，剩下 "高雄市桃源區勤和里..."
+                    const cleanStr = address.replace(/^[\d\s]+/, '').replace(/^台[灣湾]|臺[灣湾]/, '');
+
                     let currentCounty = "", currentTown = "", currentVill = "";
+                    
+                    // 正則萃取神技：精準切割出「縣市」、「鄉鎮市區」、「村里」
+                    const match = cleanStr.match(/([^縣市]+[縣市])([^鄉鎮市區]+[鄉鎮市區])?([^村里]+[村里])?/);
 
-                    // 1. 更嚴謹的解析 Google 回傳的台灣行政區劃
-                    addressComponents.forEach(comp => {
-                        const types = comp.types;
-                        const name = comp.long_name;
-                        // 縣市
-                        if (types.includes("administrative_area_level_1") || types.includes("administrative_area_level_2")) {
-                            currentCounty = name;
-                        }
-                        // 鄉鎮市區
-                        if (types.includes("administrative_area_level_3") || types.includes("locality")) {
-                            currentTown = name;
-                        }
-                        // 村里 (Google 在台灣常放在 level_4 或 sublocality_level_1)
-                        if (types.includes("administrative_area_level_4") || types.includes("sublocality_level_1") || types.includes("sublocality_level_2") || types.includes("sublocality")) {
-                            currentVill = name;
-                        }
-                    });
+                    if (match) {
+                        currentCounty = match[1] || "";
+                        currentTown = match[2] || "";
+                        currentVill = match[3] || "";
+                    }
 
-                    // 2. 統一將「臺」轉換為「台」，避免字體不同導致比對失敗
+                    // 統一臺台字元 (將 JSON 與 Google 統一為「台」以利比對)
                     const normalizeStr = (str) => str ? str.replace(/臺/g, "台") : "";
                     const nCounty = normalizeStr(currentCounty);
                     const nTown = normalizeStr(currentTown);
                     const nVill = normalizeStr(currentVill);
 
-                    // 在網頁上與 Console 顯示 Google 解析出來的結果，方便除錯
-                    const locationString = `Google 解析位置：${nCounty} ${nTown} ${nVill}`;
+                    const locationString = `解析位置：${nCounty} ${nTown} ${nVill}`;
                     document.getElementById("locationText").innerText = locationString;
-                    console.log(locationString);
 
-                    // 3. 【第一層篩選】模糊比對：縣市 + 鄉鎮 + 村里
+                    // 【第一層篩選】精準比對：縣市 + 鄉鎮 + 村里
                     let filteredData = allDebrisData.filter(item => {
-                        // 防呆：確認 JSON 內確實有這三個欄位
-                        if (!item.County || !item.Town) return false; 
+                        if (!item.County || !item.Town) return false;
                         
                         let iCounty = normalizeStr(item.County);
                         let iTown = normalizeStr(item.Town);
                         let iVill = normalizeStr(item.Vill);
 
-                        // 使用 includes 互相包含即可，例如 "甲仙區" 與 "甲仙" 都能配對
                         let matchCounty = nCounty.includes(iCounty) || iCounty.includes(nCounty);
                         let matchTown = nTown.includes(iTown) || iTown.includes(nTown);
                         let matchVill = (nVill && iVill) ? (nVill.includes(iVill) || iVill.includes(nVill)) : false;
@@ -190,9 +157,7 @@
                         return matchCounty && matchTown && matchVill;
                     });
 
-                    console.log(`村里層級篩選結果：共 ${filteredData.length} 筆`);
-
-                    // 4. 【容錯機制】若村里查無資料，退回使用「鄉鎮」篩選
+                    // 【容錯機制】若村里查無資料，退回使用「鄉鎮」篩選
                     if (filteredData.length === 0) {
                         filteredData = allDebrisData.filter(item => {
                             if (!item.County || !item.Town) return false;
@@ -203,34 +168,27 @@
                             let matchTown = nTown.includes(iTown) || iTown.includes(nTown);
                             return matchCounty && matchTown;
                         });
-                        document.getElementById("locationText").innerText += " (退回鄉鎮範圍篩選)";
-                        console.log(`退回鄉鎮層級篩選結果：共 ${filteredData.length} 筆`);
+                        document.getElementById("locationText").innerText += " (退回鄉鎮篩選)";
                     }
 
                     const streamInput = document.getElementById("streamId");
 
-                    // 5. 【自動帶入或更新選單邏輯】
+                    // 【選單自動帶入邏輯】
                     if (filteredData.length > 0) {
                         populateDropdown(filteredData);
                         
                         if (filteredData.length === 1) {
-                            // 狀況 A：只有一筆，自動填入
                             streamInput.value = filteredData[0].Debrisno;
-                            document.getElementById("locationText").innerText += ` ➔ 已帶入: ${filteredData[0].Debrisno}`;
+                            document.getElementById("locationText").innerText += ` ➔ 已自動填入: ${filteredData[0].Debrisno}`;
                         } else {
-                            // 狀況 B：有多筆，清空並提示
                             streamInput.value = ""; 
-                            streamInput.placeholder = `請點擊選單 (有 ${filteredData.length} 條可選)`;
+                            streamInput.placeholder = `請點擊選單 (範圍內有 ${filteredData.length} 條)`;
                         }
                     } else {
-                        // 狀況 C：完全找不到
                         populateDropdown(allDebrisData); 
                         streamInput.value = "";
                         streamInput.placeholder = "此區域查無既有溪流，請手動輸入";
-                        console.log("警告：篩選不到任何資料，請檢查 JSON 欄位名稱是否為 County, Town, Vill, Debrisno");
                     }
-                } else {
-                    console.log("Google Geocode 解析失敗，狀態碼：" + status);
                 }
             });
         }
